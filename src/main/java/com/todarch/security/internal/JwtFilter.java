@@ -1,5 +1,6 @@
-package com.todarch.security.infrastructure.security;
+package com.todarch.security.internal;
 
+import com.todarch.security.api.JwtUtil;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
@@ -18,10 +19,10 @@ import java.io.IOException;
  */
 public class JwtFilter extends GenericFilterBean {
 
-  private JwtTokenUtil jwtTokenUtil;
+  private JwtUtil jwtUtil;
 
-  public JwtFilter(JwtTokenUtil jwtTokenUtil) {
-    this.jwtTokenUtil = jwtTokenUtil;
+  public JwtFilter(JwtUtil jwtUtil) {
+    this.jwtUtil = jwtUtil;
   }
 
   @Override
@@ -33,8 +34,8 @@ public class JwtFilter extends GenericFilterBean {
     HttpServletRequest httpServletRequest = (HttpServletRequest) servletRequest;
     String jwt = resolveToken(httpServletRequest);
 
-    if (StringUtils.hasText(jwt) && this.jwtTokenUtil.validateToken(jwt)) {
-      Authentication authentication = this.jwtTokenUtil.getAuthentication(jwt);
+    if (StringUtils.hasText(jwt) && this.jwtUtil.validateToken(jwt)) {
+      Authentication authentication = this.jwtUtil.getAuthentication(jwt);
       SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 
@@ -42,8 +43,8 @@ public class JwtFilter extends GenericFilterBean {
   }
 
   private String resolveToken(HttpServletRequest request) {
-    String bearerToken = request.getHeader(JwtTokenUtil.AUTH_HEADER);
-    if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(JwtTokenUtil.AUTH_PREFIX)) {
+    String bearerToken = request.getHeader(JwtUtil.AUTH_HEADER);
+    if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(JwtUtil.AUTH_PREFIX)) {
       return bearerToken.substring(7, bearerToken.length());
     }
     return null;

@@ -1,6 +1,6 @@
-package com.todarch.security.infrastructure.security;
+package com.todarch.security.api;
 
-import com.todarch.security.domain.shared.Jwt;
+import com.todarch.security.api.UserContext;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
@@ -13,19 +13,17 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
 @Slf4j
 //TODO:selimssevgi: write tests
-public class JwtTokenUtil {
+public class JwtUtil {
 
   private static final String AUTHORITIES_KEY = "auth";
   private static final String USER_ID_KEY = "user_id";
@@ -38,31 +36,6 @@ public class JwtTokenUtil {
 
   private long tokenValidityInMillisecondsForRememberMe = 1000 * 8000L;
 
-  public String getEmailFromToken(String token) {
-    return getClaimFromToken(token, Claims::getSubject);
-  }
-
-  public String getUserIdFromToken(String token) {
-    return getClaimFromToken(token, Claims::getSubject);
-  }
-
-  public Date getIssuedAtDateFromToken(String token) {
-    return getClaimFromToken(token, Claims::getIssuedAt);
-  }
-
-  public Date getExpirationDateFromToken(String token) {
-    return getClaimFromToken(token, Claims::getExpiration);
-  }
-
-  public String getAudienceFromToken(String token) {
-    return getClaimFromToken(token, Claims::getAudience);
-  }
-
-  public <T> T getClaimFromToken(String token, Function<Claims, T> claimsResolver) {
-    final Claims claims = getAllClaimsFromToken(token);
-    return claimsResolver.apply(claims);
-  }
-
   private Claims getAllClaimsFromToken(String token) {
     return Jwts.parser()
         .setSigningKey(secretKey)
@@ -70,11 +43,6 @@ public class JwtTokenUtil {
         .getBody();
   }
 
-  // private Boolean isTokenExpired(String token) {
-  //   final Date expiration = getExpirationDateFromToken(token);
-  //   return expiration.before(timeProvider.now());
-  // }
-
   /**
    * Creates jwt based on Authentication object.
    *
@@ -82,7 +50,7 @@ public class JwtTokenUtil {
    * @param rememberMe changes the expire date of jwt
    * @return token
    */
-  public Jwt createToken(Authentication authentication, Boolean rememberMe) {
+  public String createToken(Authentication authentication, Boolean rememberMe, Long userId) {
     String authorities = authentication.getAuthorities().stream()
         .map(GrantedAuthority::getAuthority)
         .collect(Collectors.joining(","));
@@ -96,44 +64,13 @@ public class JwtTokenUtil {
       validity = new Date(now + this.tokenValidityInMilliseconds);
     }
 
-    String token = Jwts.builder()
-        .setSubject(authentication.getName())
-        .claim(AUTHORITIES_KEY, authorities)
-        .signWith(SignatureAlgorithm.HS512, secretKey)
-        .setExpiration(validity)
-        .compact();
-    return Jwt.from(token);
-  }
-
-  /**
-   * Creates jwt based on Authentication object.
-   *
-   * @param authentication spring security authentication
-   * @param rememberMe changes the expire date of jwt
-   * @return token
-   */
-  public Jwt createToken(Authentication authentication, Boolean rememberMe, Long userId) {
-    String authorities = authentication.getAuthorities().stream()
-        .map(GrantedAuthority::getAuthority)
-        .collect(Collectors.joining(","));
-
-    //TODO:selimssevgi: use java 8
-    long now = (new Date()).getTime();
-    Date validity;
-    if (rememberMe) {
-      validity = new Date(now + this.tokenValidityInMillisecondsForRememberMe);
-    } else {
-      validity = new Date(now + this.tokenValidityInMilliseconds);
-    }
-
-    String token = Jwts.builder()
+    return Jwts.builder()
         .setSubject(authentication.getName())
         .claim(AUTHORITIES_KEY, authorities)
         .claim(USER_ID_KEY, userId)
         .signWith(SignatureAlgorithm.HS512, secretKey)
         .setExpiration(validity)
         .compact();
-    return Jwt.from(token);
   }
 
   /**
@@ -143,10 +80,7 @@ public class JwtTokenUtil {
    * @return spring security authentication
    */
   public Authentication getAuthentication(String token) {
-    Claims claims = Jwts.parser()
-        .setSigningKey(secretKey)
-        .parseClaimsJws(token)
-        .getBody();
+    Claims claims = getAllClaimsFromToken(token);
 
     Collection<? extends GrantedAuthority> authorities =
         Arrays.stream(claims.get(AUTHORITIES_KEY).toString().split(","))
@@ -155,11 +89,11 @@ public class JwtTokenUtil {
 
     Long userId = claims.get(USER_ID_KEY, Long.class);
 
-    // User principal = new User(claims.getSubject(), "", authorities);
-    UserContext principal = new UserContext();
-    principal.setUserId(userId);
-    principal.setEmail(claims.getSubject());
-    principal.setAuthorities(authorities);
+    UserContext principal = new UserContext(
+        token,
+        userId,
+        claims.getSubject(),
+        authorities);
 
     return new UsernamePasswordAuthenticationToken(principal, token, authorities);
   }
