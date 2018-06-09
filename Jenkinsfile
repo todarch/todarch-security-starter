@@ -22,7 +22,7 @@ pipeline {
         branch 'master'
       }
       steps {
-        sh '${env.JENKINS_SCRIPTS}/deploy-artifact.sh'
+        sh "${env.JENKINS_SCRIPTS}/deploy-artifact.sh"
       }
     }
   }
